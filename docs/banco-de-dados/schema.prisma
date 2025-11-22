@@ -1,0 +1,1242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model advogados {
+  id                    Int                     @id
+  nome                  String
+  numero_oab            String?
+  uf_oab                String?
+  created_at            DateTime?               @default(now()) @db.Timestamp(6)
+  updated_at            DateTime?               @default(now()) @db.Timestamp(6)
+  comunicacao_advogados comunicacao_advogados[]
+
+  @@index([numero_oab, uf_oab], map: "idx_advogados_oab_uf")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model audit_log {
+  id_audit         BigInt   @id @default(autoincrement())
+  id_empresa       String?  @db.Uuid
+  tabela           String
+  operacao         String   @db.Char(1)
+  registro_id      String?  @db.Uuid
+  dados_anteriores Json?
+  dados_novos      Json?
+  usuario_id       String?  @db.Uuid
+  ocorrido_em      DateTime @default(now()) @db.Timestamptz(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model compromissos {
+  id_compromisso       String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa           String                 @db.Uuid
+  id_usuario           String                 @db.Uuid
+  titulo               String
+  local                String?
+  data_inicio          DateTime               @db.Timestamptz(6)
+  data_fim             DateTime?              @db.Timestamptz(6)
+  participantes        Json?
+  custom_fields        Json?
+  criado_em            DateTime               @default(now()) @db.Timestamptz(6)
+  tipo_evento          String?                @default("evento") @db.VarChar(20)
+  status               String?                @default("agendado") @db.VarChar(20)
+  processo_vinculado   String?                @db.Uuid
+  configuracao_alertas Json?                  @default("{}")
+  sincronizar_google   Boolean?               @default(false)
+  prioridade           String?                @default("media") @db.VarChar(10)
+  descricao            String?
+  observacoes          String?
+  empresas             empresas               @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  usuarios             usuarios               @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  processos            processos?             @relation(fields: [processo_vinculado], references: [id_processo], onDelete: NoAction, onUpdate: NoAction)
+  evento_alertas       evento_alertas[]
+  evento_documentos    evento_documentos[]
+  evento_participantes evento_participantes[]
+  evento_recorrencia   evento_recorrencia[]
+  tb_eventos_google    tb_eventos_google[]
+
+  @@index([data_inicio], map: "idx_compromissos_data_inicio")
+  @@index([id_empresa, data_inicio], map: "idx_compromissos_empresa_data")
+  @@index([processo_vinculado], map: "idx_compromissos_processo")
+  @@index([status], map: "idx_compromissos_status")
+  @@index([tipo_evento], map: "idx_compromissos_tipo_evento")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model comunicacao_advogados {
+  id              BigInt     @id @default(autoincrement())
+  numero_processo String
+  comunicacao_id  BigInt
+  advogado_id     Int?
+  nome_advogado   String?
+  numero_oab      String?
+  uf_oab          String?
+  created_at      DateTime   @default(now()) @db.Timestamp(6)
+  advogados       advogados? @relation(fields: [advogado_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([comunicacao_id, numero_processo, nome_advogado, numero_oab, uf_oab], map: "uq_com_adv_unique")
+  @@index([advogado_id], map: "idx_com_adv_advogado_id")
+  @@index([comunicacao_id], map: "idx_com_adv_comunicacao_id")
+  @@index([numero_processo], map: "idx_com_adv_numero_processo")
+  @@index([numero_oab, uf_oab], map: "idx_com_adv_oab_uf")
+}
+
+model comunicacao_destinatarios {
+  id              BigInt       @id @default(autoincrement())
+  numero_processo String
+  comunicacao_id  BigInt
+  nome            String?
+  polo            String?
+  comunicacoes    comunicacoes @relation(fields: [comunicacao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([comunicacao_id], map: "idx_com_dest_comunicacao_id")
+  @@index([numero_processo], map: "idx_com_dest_numero_processo")
+}
+
+model comunicacoes {
+  id                        BigInt                      @id
+  data_disponibilizacao     DateTime?                   @db.Date
+  data_envio                DateTime?                   @db.Date
+  sigla_tribunal            String?
+  id_orgao                  Int?
+  tipo_comunicacao          String?
+  tipo_documento            String?
+  numero_processo           String?
+  nome_classe               String?
+  codigo_classe             Int?
+  status                    String?
+  ativo                     Boolean?                    @default(true)
+  numeroprocessocommascara  String?
+  nome_orgao                String?
+  texto                     String?
+  worker_id                 String?
+  data_coleta               DateTime?                   @db.Date
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  link                      String?
+  hash                      String?
+  meiocompleto              String?
+  tem_vinculo               Int                         @default(0)
+  motivo_cancelamento       String?
+  data_cancelamento         DateTime?                   @db.Date
+  meio                      String?
+  numerocomunicacao         Int?
+  json                      String?
+  comunicacao_destinatarios comunicacao_destinatarios[]
+
+  @@index([data_envio], map: "idx_comunicacoes_data_envio")
+  @@index([id_orgao], map: "idx_comunicacoes_id_orgao")
+  @@index([numero_processo], map: "idx_comunicacoes_numero_processo")
+  @@index([id_orgao, data_disponibilizacao(sort: Desc), numero_processo], map: "idx_comunicacoes_orgao_data_processo")
+  @@index([sigla_tribunal], map: "idx_comunicacoes_sigla_tribunal")
+  @@index([tem_vinculo], map: "idx_comunicacoes_tem_vinculo")
+}
+
+model configuracoes_alertas_padrao {
+  id_config     String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tipo_evento   String    @db.VarChar(20)
+  minutos_antes Int
+  tipo_alerta   String    @db.VarChar(20)
+  ativo         Boolean?  @default(true)
+  criado_em     DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model contas {
+  id_conta   String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa String       @db.Uuid
+  nome_conta String
+  tipo_conta String
+  saldo      Decimal      @default(0) @db.Decimal(14, 2)
+  criado_em  DateTime     @default(now()) @db.Timestamptz(6)
+  empresas   empresas     @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  transacoes transacoes[]
+}
+
+model documentos {
+  id_documento   String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa     String     @db.Uuid
+  id_processo    String?    @db.Uuid
+  id_pessoa      String?    @db.Uuid
+  tipo_documento String?
+  url            String
+  tamanho_bytes  BigInt?
+  hash           String?
+  metadata       Json?
+  criado_em      DateTime   @default(now()) @db.Timestamptz(6)
+  empresas       empresas   @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  pessoas        pessoas?   @relation(fields: [id_pessoa], references: [id_pessoa], onDelete: NoAction, onUpdate: NoAction)
+  processos      processos? @relation(fields: [id_processo], references: [id_processo], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model empresas {
+  id_empresa           String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nome                 String
+  criado_em            DateTime           @default(now()) @db.Timestamptz(6)
+  proc_inicial         String?
+  plan_id              Int?
+  dt_termino_acesso    DateTime?          @db.Date
+  status               String?
+  stripe_cliente_id    String?
+  stripe_assinatura_id String?
+  vl_assinatura        Decimal?           @db.Decimal
+  nome_fantasia        String?
+  cnpj                 String?
+  ie                   String?
+  im                   String?
+  email                String?
+  telefone             String?
+  celular              String?
+  cep                  String?
+  endereco             String?
+  numero               String?
+  complemento          String?
+  bairro               String?
+  cidade               String?
+  estado               String?
+  site                 String?
+  logo                 String?
+  timezone             String?
+  language             String?
+  notification_email   String?
+  updated_at           DateTime?          @db.Timestamptz(6)
+  compromissos         compromissos[]
+  contas               contas[]
+  documentos           documentos[]
+  pessoas              pessoas[]
+  processos            processos[]
+  roles                roles[]
+  taggings             taggings[]
+  tags                 tags[]
+  tarefas              tarefas[]
+  transacoes           transacoes[]
+  usuario_empresas     usuario_empresas[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model evento_alertas {
+  id_alerta              String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_compromisso         String       @db.Uuid
+  id_usuario             String       @db.Uuid
+  minutos_antes          Int
+  tipo_alerta            String       @db.VarChar(20)
+  mensagem_personalizada String?
+  ativo                  Boolean?     @default(true)
+  enviado                Boolean?     @default(false)
+  enviado_em             DateTime?    @db.Timestamptz(6)
+  tentativas_envio       Int?         @default(0)
+  erro_envio             String?
+  criado_em              DateTime?    @default(now()) @db.Timestamptz(6)
+  compromissos           compromissos @relation(fields: [id_compromisso], references: [id_compromisso], onDelete: Cascade, onUpdate: NoAction)
+  usuarios               usuarios     @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_compromisso], map: "idx_evento_alertas_compromisso")
+  @@index([enviado, enviado_em], map: "idx_evento_alertas_envio")
+  @@index([id_usuario], map: "idx_evento_alertas_usuario")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model evento_documentos {
+  id_documento      String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_compromisso    String       @db.Uuid
+  nome_arquivo      String
+  nome_original     String
+  caminho_arquivo   String
+  tipo_documento    String?      @default("documento") @db.VarChar(50)
+  tipo_mime         String?      @db.VarChar(100)
+  tamanho_bytes     BigInt?
+  hash_arquivo      String?
+  versao            Int?         @default(1)
+  id_usuario_upload String?      @db.Uuid
+  anexado_em        DateTime?    @default(now()) @db.Timestamptz(6)
+  observacoes       String?
+  compromissos      compromissos @relation(fields: [id_compromisso], references: [id_compromisso], onDelete: Cascade, onUpdate: NoAction)
+  usuarios          usuarios?    @relation(fields: [id_usuario_upload], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_compromisso], map: "idx_evento_documentos_compromisso")
+  @@index([tipo_documento], map: "idx_evento_documentos_tipo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model evento_participantes {
+  id_participante       String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_compromisso        String       @db.Uuid
+  id_pessoa             String?      @db.Uuid
+  nome_participante     String
+  email_participante    String?
+  telefone_participante String?
+  papel                 String?      @default("participante") @db.VarChar(50)
+  status_confirmacao    String?      @default("pendente") @db.VarChar(20)
+  confirmado_em         DateTime?    @db.Timestamptz(6)
+  observacoes           String?
+  criado_em             DateTime?    @default(now()) @db.Timestamptz(6)
+  compromissos          compromissos @relation(fields: [id_compromisso], references: [id_compromisso], onDelete: Cascade, onUpdate: NoAction)
+  pessoas               pessoas?     @relation(fields: [id_pessoa], references: [id_pessoa], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_compromisso], map: "idx_evento_participantes_compromisso")
+  @@index([id_pessoa], map: "idx_evento_participantes_pessoa")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model evento_recorrencia {
+  id_recorrencia       String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_compromisso_pai   String       @db.Uuid
+  padrao_recorrencia   String       @db.VarChar(20)
+  intervalo            Int?         @default(1)
+  dias_semana          Json?
+  dia_mes              Int?
+  data_fim_recorrencia DateTime?    @db.Date
+  max_ocorrencias      Int?
+  excecoes             Json?        @default("[]")
+  fuso_horario         String?      @default("America/Sao_Paulo") @db.VarChar(50)
+  ativo                Boolean?     @default(true)
+  criado_em            DateTime?    @default(now()) @db.Timestamptz(6)
+  compromissos         compromissos @relation(fields: [id_compromisso_pai], references: [id_compromisso], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([id_compromisso_pai], map: "idx_evento_recorrencia_pai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model fin_comprovantes {
+  id_comprovante          String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_pagamento            String?                  @db.Uuid
+  id_lancamento_avulso    String?                  @db.Uuid
+  tipo_comprovante        String?                  @db.VarChar(50)
+  nome_arquivo            String                   @db.VarChar(255)
+  caminho_arquivo         String                   @db.VarChar(500)
+  tipo_arquivo            String?                  @db.VarChar(50)
+  tamanho_bytes           BigInt?
+  hash_arquivo            String?                  @db.VarChar(64)
+  descricao               String?
+  criado_em               DateTime?                @default(now()) @db.Timestamp(6)
+  criado_por              String?                  @db.VarChar(100)
+  fin_lancamentos_avulsos fin_lancamentos_avulsos? @relation(fields: [id_lancamento_avulso], references: [id_lancamento_avulso], onDelete: Cascade, onUpdate: NoAction)
+  fin_pagamentos          fin_pagamentos?          @relation(fields: [id_pagamento], references: [id_pagamento], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([id_lancamento_avulso], map: "idx_fin_comprovantes_lancamento_avulso")
+  @@index([id_pagamento], map: "idx_fin_comprovantes_pagamento")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model fin_contratos {
+  id_contrato           String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_processo           String      @db.Uuid
+  id_empresa            String      @db.Uuid
+  tipo_contrato         String      @db.VarChar(50)
+  subtipo               String?     @db.VarChar(50)
+  numero_contrato       String?     @db.VarChar(100)
+  descricao             String
+  data_contrato         DateTime    @db.Date
+  data_inicio_vigencia  DateTime?   @db.Date
+  data_fim_vigencia     DateTime?   @db.Date
+  parte_contratante     String?     @db.VarChar(200)
+  cpf_cnpj_contratante  String?     @db.VarChar(20)
+  valor_total           Decimal     @default(0) @db.Decimal(15, 2)
+  valor_recebido        Decimal     @default(0) @db.Decimal(15, 2)
+  valor_pendente        Decimal?    @default(dbgenerated("(valor_total - valor_recebido)")) @db.Decimal(15, 2)
+  numero_parcelas       Int?
+  valor_parcela_base    Decimal?    @db.Decimal(15, 2)
+  dia_vencimento        Int?
+  data_primeira_parcela DateTime?   @db.Date
+  taxa_juros_mes        Decimal?    @default(0) @db.Decimal(5, 2)
+  taxa_multa_atraso     Decimal?    @default(0) @db.Decimal(5, 2)
+  percentual_desconto   Decimal?    @default(0) @db.Decimal(5, 2)
+  status                String?     @default("ATIVO") @db.VarChar(30)
+  dados_especificos     Json?
+  observacoes           String?
+  criado_em             DateTime?   @default(now()) @db.Timestamp(6)
+  criado_por            String?     @db.VarChar(100)
+  atualizado_em         DateTime?   @default(now()) @db.Timestamp(6)
+  atualizado_por        String?     @db.VarChar(100)
+  processos             processos   @relation(fields: [id_processo], references: [id_processo], onDelete: Cascade, onUpdate: NoAction)
+  fin_itens             fin_itens[]
+
+  @@index([data_contrato], map: "idx_fin_contratos_data")
+  @@index([id_empresa], map: "idx_fin_contratos_empresa")
+  @@index([id_processo], map: "idx_fin_contratos_processo")
+  @@index([status], map: "idx_fin_contratos_status")
+  @@index([tipo_contrato], map: "idx_fin_contratos_tipo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model fin_historico {
+  id_historico       String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tabela_origem      String    @db.VarChar(50)
+  id_registro        String    @db.Uuid
+  tipo_acao          String    @db.VarChar(50)
+  descricao          String
+  valores_anteriores Json?
+  valores_novos      Json?
+  data_acao          DateTime? @default(now()) @db.Timestamp(6)
+  usuario            String?   @db.VarChar(100)
+  ip_usuario         String?   @db.VarChar(50)
+
+  @@index([data_acao], map: "idx_fin_historico_data")
+  @@index([tabela_origem, id_registro], map: "idx_fin_historico_registro")
+  @@index([tipo_acao], map: "idx_fin_historico_tipo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model fin_itens {
+  id_item                 String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_contrato             String?                  @db.Uuid
+  id_lancamento_avulso    String?                  @db.Uuid
+  tipo_item               String                   @db.VarChar(50)
+  numero_item             Int
+  descricao               String?
+  data_vencimento         DateTime                 @db.Date
+  data_pagamento          DateTime?                @db.Date
+  data_competencia        DateTime?                @db.Date
+  valor_principal         Decimal                  @db.Decimal(15, 2)
+  valor_juros             Decimal?                 @default(0) @db.Decimal(15, 2)
+  valor_multa             Decimal?                 @default(0) @db.Decimal(15, 2)
+  valor_desconto          Decimal?                 @default(0) @db.Decimal(15, 2)
+  valor_total             Decimal?                 @default(dbgenerated("(((valor_principal + valor_juros) + valor_multa) - valor_desconto)")) @db.Decimal(15, 2)
+  valor_pago              Decimal?                 @default(0) @db.Decimal(15, 2)
+  status                  String?                  @default("PENDENTE") @db.VarChar(30)
+  dados_especificos       Json?
+  observacoes             String?
+  criado_em               DateTime?                @default(now()) @db.Timestamp(6)
+  criado_por              String?                  @db.VarChar(100)
+  atualizado_em           DateTime?                @default(now()) @db.Timestamp(6)
+  atualizado_por          String?                  @db.VarChar(100)
+  fin_contratos           fin_contratos?           @relation(fields: [id_contrato], references: [id_contrato], onDelete: Cascade, onUpdate: NoAction)
+  fin_lancamentos_avulsos fin_lancamentos_avulsos? @relation(fields: [id_lancamento_avulso], references: [id_lancamento_avulso], onDelete: Cascade, onUpdate: NoAction)
+  fin_pagamentos          fin_pagamentos[]
+
+  @@index([id_contrato], map: "idx_fin_itens_contrato")
+  @@index([id_lancamento_avulso], map: "idx_fin_itens_lancamento_avulso")
+  @@index([status], map: "idx_fin_itens_status")
+  @@index([tipo_item], map: "idx_fin_itens_tipo")
+  @@index([data_vencimento], map: "idx_fin_itens_vencimento")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model fin_lancamentos_avulsos {
+  id_lancamento_avulso String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_processo          String             @db.Uuid
+  id_empresa           String             @db.Uuid
+  tipo_lancamento      String             @db.VarChar(50)
+  categoria            String?            @db.VarChar(100)
+  descricao            String
+  numero_documento     String?            @db.VarChar(100)
+  data_lancamento      DateTime           @db.Date
+  data_vencimento      DateTime?          @db.Date
+  data_pagamento       DateTime?          @db.Date
+  data_reembolso       DateTime?          @db.Date
+  valor_original       Decimal            @db.Decimal(15, 2)
+  valor_pago           Decimal?           @default(0) @db.Decimal(15, 2)
+  valor_reembolsado    Decimal?           @default(0) @db.Decimal(15, 2)
+  pago_por             String?            @db.VarChar(100)
+  reembolsavel         Boolean?           @default(false)
+  status_pagamento     String?            @default("PENDENTE") @db.VarChar(30)
+  status_reembolso     String?            @db.VarChar(30)
+  nome_fornecedor      String?            @db.VarChar(200)
+  cpf_cnpj_fornecedor  String?            @db.VarChar(20)
+  dados_especificos    Json?
+  observacoes          String?
+  criado_em            DateTime?          @default(now()) @db.Timestamp(6)
+  criado_por           String?            @db.VarChar(100)
+  atualizado_em        DateTime?          @default(now()) @db.Timestamp(6)
+  atualizado_por       String?            @db.VarChar(100)
+  fin_comprovantes     fin_comprovantes[]
+  fin_itens            fin_itens[]
+  processos            processos          @relation(fields: [id_processo], references: [id_processo], onDelete: Cascade, onUpdate: NoAction)
+  fin_pagamentos       fin_pagamentos[]
+
+  @@index([id_empresa], map: "idx_fin_lancamentos_avulsos_empresa")
+  @@index([id_processo], map: "idx_fin_lancamentos_avulsos_processo")
+  @@index([reembolsavel], map: "idx_fin_lancamentos_avulsos_reembolsavel")
+  @@index([status_pagamento], map: "idx_fin_lancamentos_avulsos_status")
+  @@index([tipo_lancamento], map: "idx_fin_lancamentos_avulsos_tipo")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model fin_pagamentos {
+  id_pagamento            String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_item                 String?                  @db.Uuid
+  id_lancamento_avulso    String?                  @db.Uuid
+  tipo_transacao          String                   @db.VarChar(30)
+  data_pagamento          DateTime                 @db.Date
+  valor_pago              Decimal                  @db.Decimal(15, 2)
+  forma_pagamento         String?                  @db.VarChar(50)
+  banco                   String?                  @db.VarChar(100)
+  agencia                 String?                  @db.VarChar(20)
+  conta                   String?                  @db.VarChar(30)
+  numero_documento        String?                  @db.VarChar(100)
+  pagador                 String?                  @db.VarChar(200)
+  cpf_cnpj_pagador        String?                  @db.VarChar(20)
+  beneficiario            String?                  @db.VarChar(200)
+  cpf_cnpj_beneficiario   String?                  @db.VarChar(20)
+  conciliado              Boolean?                 @default(false)
+  data_conciliacao        DateTime?                @db.Date
+  observacoes             String?
+  criado_em               DateTime?                @default(now()) @db.Timestamp(6)
+  criado_por              String?                  @db.VarChar(100)
+  fin_comprovantes        fin_comprovantes[]
+  fin_itens               fin_itens?               @relation(fields: [id_item], references: [id_item], onDelete: Cascade, onUpdate: NoAction)
+  fin_lancamentos_avulsos fin_lancamentos_avulsos? @relation(fields: [id_lancamento_avulso], references: [id_lancamento_avulso], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([conciliado], map: "idx_fin_pagamentos_conciliado")
+  @@index([data_pagamento], map: "idx_fin_pagamentos_data")
+  @@index([id_item], map: "idx_fin_pagamentos_item")
+  @@index([id_lancamento_avulso], map: "idx_fin_pagamentos_lancamento_avulso")
+  @@index([tipo_transacao], map: "idx_fin_pagamentos_tipo")
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model movimentacoes {
+  data_movimentacao DateTime  @db.Timestamptz(6)
+  id_movimentacao   BigInt    @default(autoincrement())
+  id_empresa        String    @db.Uuid
+  id_processo       String    @db.Uuid
+  descricao         String
+  custom_fields     Json?
+  criado_em         DateTime  @default(now()) @db.Timestamptz(6)
+  processos         processos @relation(fields: [id_processo], references: [id_processo], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([data_movimentacao, id_movimentacao])
+}
+
+model orgaos {
+  id_orgao       String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_tribunal    String? @db.Uuid
+  id             Int?    @unique(map: "tribunais_id_unique")
+  nome           String?
+  sigla_tribunal String?
+}
+
+model permissoes {
+  id_permissao    Int               @id @default(autoincrement())
+  nome_permissao  String            @unique
+  descricao       String?
+  role_permissoes role_permissoes[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model pessoas {
+  id_pessoa            String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa           String                 @db.Uuid
+  tipo_pessoa          String
+  nome                 String
+  cpf_cnpj             String?
+  criado_em            DateTime               @default(now()) @db.Timestamptz(6)
+  perfil               String?
+  apelido              String?
+  rg                   String?
+  ctps                 String?
+  pis                  String?
+  titulo_eleitor       String?
+  cnh                  String?
+  passaporte           String?
+  reservista           String?
+  ie                   String?
+  im                   String?
+  simples_nacional     String?
+  foto                 String?
+  documentos           documentos[]
+  evento_participantes evento_participantes[]
+  empresas             empresas               @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  processos_pessoas    processos_pessoas[]
+  transacoes           transacoes[]
+}
+
+model pessoas_email {
+  id_email   String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_pessoa  String? @db.Uuid
+  tipo       String?
+  email      String?
+  id_empresa String? @db.Uuid
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model pessoas_endereco {
+  id_endereco      String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_pessoa        String?   @db.Uuid
+  id_empresa       String?   @db.Uuid
+  tipo_endereco    String?
+  cep              String?
+  logradouro       String?
+  numero           String?
+  complemento      String?
+  bairro           String?
+  cidade           String?
+  uf               String?
+  pais             String?
+  latitude         String?
+  longitude        String?
+  ativo            Boolean?
+  data_criacao     DateTime? @db.Timestamptz(6)
+  data_atualizacao DateTime? @db.Timestamptz(6)
+  validado_em      DateTime? @db.Timetz(6)
+}
+
+model pessoas_site {
+  id_site    String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_pessoa  String? @db.Uuid
+  id_empresa String? @db.Uuid
+  site       String?
+}
+
+model pessoas_telefone {
+  id_pessoa  String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa String? @db.Uuid
+  tipo       String?
+  numero     String?
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model processos {
+  id_processo                    String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa                     String                    @db.Uuid
+  numero_processo                String
+  data_distribuicao              DateTime?                 @db.Date
+  custom_fields                  Json?
+  criado_em                      DateTime                  @default(now()) @db.Timestamptz(6)
+  atualizado_em                  DateTime                  @default(now()) @db.Timestamptz(6)
+  titulo                         String?
+  instancia                      String?
+  juizo                          String?
+  vara                           String?
+  foro                           String?
+  acao                           String?
+  url_tribunal                   String?
+  objeto                         String?
+  valor_causa                    Decimal?                  @db.Decimal(10, 2)
+  valor_condenacao               Decimal?                  @db.Decimal(10, 2)
+  observacoes                    String?
+  responsavel                    String?
+  acesso                         String?
+  pasta                          String?
+  numeroprocessocommascara       String?
+  siglatribunal                  String?
+  nomeclasse                     String?
+  sigla_tribunal                 String?
+  id_orgao                       Int?
+  nome_orgao                     String?
+  nome_classe                    String?
+  codigo_classe                  Int?
+  tipo_documento                 String?
+  tipo_comunicacao               String?
+  data_primeira_disponibilizacao DateTime?                 @db.Date
+  data_ultima_disponibilizacao   DateTime?                 @db.Date
+  qtd_comunicacoes               Int?
+  ultimo_comunicado_id           Int?
+  ultimo_link                    String?
+  partes_ativas                  String[]
+  partes_passivas                String[]
+  created_at                     DateTime?                 @default(now()) @db.Timestamp(6)
+  updated_at                     DateTime?                 @default(now()) @db.Timestamp(6)
+  compromissos                   compromissos[]
+  documentos                     documentos[]
+  fin_contratos                  fin_contratos[]
+  fin_lancamentos_avulsos        fin_lancamentos_avulsos[]
+  movimentacoes                  movimentacoes[]
+  empresas                       empresas                  @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  processos_pessoas              processos_pessoas[]
+  publicacoes                    publicacoes[]
+  transacoes                     transacoes[]
+
+  @@unique([id_empresa, numero_processo], map: "uq_processos_empresa_processo")
+  @@index([id_empresa], map: "idx_processos_empresa")
+  @@index([id_empresa, data_ultima_disponibilizacao(sort: Desc)], map: "idx_processos_empresa_data")
+  @@index([numero_processo], map: "idx_processos_numero")
+}
+
+model processos_pessoas {
+  id_processo   String    @db.Uuid
+  id_pessoa     String    @db.Uuid
+  papel         String
+  custom_fields Json?
+  tipo          String?
+  pessoas       pessoas   @relation(fields: [id_pessoa], references: [id_pessoa], onDelete: Cascade, onUpdate: NoAction)
+  processos     processos @relation(fields: [id_processo], references: [id_processo], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([id_processo, id_pessoa, papel])
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model publicacoes {
+  data_publicacao DateTime  @db.Date
+  id_publicacao   BigInt    @default(autoincrement())
+  id_empresa      String    @db.Uuid
+  id_processo     String    @db.Uuid
+  descricao       String?
+  status          String    @default("NÃO TRATADA")
+  custom_fields   Json?
+  criado_em       DateTime  @default(now()) @db.Timestamptz(6)
+  processos       processos @relation(fields: [id_processo], references: [id_processo], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([data_publicacao, id_publicacao])
+}
+
+model role_permissoes {
+  id_role      Int
+  id_permissao Int
+  permissoes   permissoes @relation(fields: [id_permissao], references: [id_permissao], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([id_role, id_permissao])
+}
+
+model roles {
+  id_role       String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa    String          @db.Uuid
+  nome_role     String
+  descricao     String?
+  criado_em     DateTime        @default(now()) @db.Timestamptz(6)
+  atualizado_em DateTime        @default(now()) @db.Timestamptz(6)
+  empresas      empresas        @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
+  usuario_roles usuario_roles[]
+
+  @@unique([id_empresa, nome_role], map: "uq_roles_empresa_nome")
+}
+
+model tab_amazons3 {
+  codigo               Int     @id @default(autoincrement())
+  cod_empresa          Int?
+  servidor_nome        String?
+  servidor_url         String?
+  obj_caminho          String?
+  obj_nome             String?
+  tabela               String?
+  cod_registro         Int?
+  obj_nome_original    String?
+  obj_tamanho          Int?
+  obj_tipo             String?
+  obj_url              String?
+  amz_bucket           String?
+  amz_date             String?
+  amz_etag             String?
+  amz_server           String?
+  amz_x_amz_id_2       String?
+  amz_x_amz_request_id String?
+  amz_headers          String?
+  tag                  Int?
+  id_remoto            Int?
+}
+
+model tab_cnaoab {
+  codigo                Int       @id
+  adv_codigo            Int?
+  oab                   String?
+  oab_numero            String?
+  oab_uf                String?
+  url_consulta          String?
+  consulta_cna          String?
+  consulta_getdetail    String?
+  consulta_renderdetail String?
+  detailurl_get         String?
+  detailurl_render      String?
+  nome                  String?
+  tipoinscoab           String?
+  nomesocial            String?
+  email                 String?
+  data                  DateTime? @db.Timestamp(6)
+  arquivo_foto          String?
+  url_foto              String?
+}
+
+model tab_comunicado_fala {
+  codigo                          Int       @id @default(autoincrement())
+  data_hora                       DateTime? @db.Timestamp(6)
+  data_disponibilizacao           DateTime? @db.Date
+  numero_processo                 String?
+  comunicado_id                   BigInt?
+  comunicado_codigo               Int?
+  arquivo_mp3                     String?
+  url_mp3                         String?
+  ia_json                         String?
+  ia_mensagem_prazo               String?
+  ia_resumo_decisao               String?
+  ia_ato_cabivel                  String?
+  ia_prazo_dias                   Int?      @default(0)
+  ia_prazo_estimado               DateTime? @db.Date
+  ia_fundamentacao_prazo          String?
+  ia_trecho_relevante             String?
+  ia_aviso_legal                  String?
+  texto                           String?
+  mp3_duracao_sec                 Decimal?  @db.Decimal(15, 4)
+  mp3_tamanho_kb                  Decimal?  @db.Decimal(15, 4)
+  engine_ai_text                  String?
+  engine_ai_text_model            String?
+  engine_ia_text_prompttokens     Int?
+  engine_ia_text_completiontokens Int?
+  engine_ia_text_estimatedcost    Decimal?  @db.Decimal(15, 10)
+  engine_ai_voice                 String?
+  engine_ai_voice_model           String?
+  engine_ai_voice_region          String?
+  ia_text_status                  Int?
+  ia_voice_status                 Int?
+  ia_prazo_encontrado             Boolean?
+
+  @@index([comunicado_id])
+}
+
+model taggings {
+  id_taggings   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa    String   @db.Uuid
+  taggable_type String
+  taggable_id   String   @db.Uuid
+  id_tag        String   @db.Uuid
+  criado_em     DateTime @default(now()) @db.Timestamptz(6)
+  empresas      empresas @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  tags          tags     @relation(fields: [id_tag], references: [id_tag], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([taggable_type, taggable_id], map: "idx_taggings_entity")
+}
+
+model tags {
+  id_tag        String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa    String     @db.Uuid
+  nome_tag      String
+  descricao     String?
+  id_tag_pai    String?    @db.Uuid
+  custom_fields Json?
+  criado_em     DateTime   @default(now()) @db.Timestamptz(6)
+  tag_system    String?    @default(dbgenerated("false"))
+  color         String?
+  taggings      taggings[]
+  empresas      empresas   @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  tags          tags?      @relation("tagsTotags", fields: [id_tag_pai], references: [id_tag], onDelete: NoAction, onUpdate: NoAction)
+  other_tags    tags[]     @relation("tagsTotags")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model tarefas {
+  id_tarefa            String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa           String                   @db.Uuid
+  titulo               String
+  descricao            String?
+  prioridade           Int                      @default(0) @db.SmallInt
+  data_inicio          DateTime?                @db.Timestamptz(6)
+  prazo                DateTime?                @db.Timestamptz(6)
+  sla_interval         Unsupported("interval")?
+  id_usuario_atribuido String?                  @db.Uuid
+  status               String
+  custom_fields        Json?
+  criado_em            DateTime                 @default(now()) @db.Timestamptz(6)
+  atualizado_em        DateTime                 @default(now()) @db.Timestamptz(6)
+  empresas             empresas                 @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  usuarios             usuarios?                @relation(fields: [id_usuario_atribuido], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_usuario_atribuido], map: "idx_tarefas_usuario")
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model tb_advogado {
+  id                 Int       @id @default(autoincrement())
+  data_cadastro      DateTime? @default(now()) @db.Timestamp(6)
+  plan_id            Int?
+  tipo_pessoa        String?
+  documento          String?
+  nome_user          String?
+  nome_advogado      String?
+  oab_tipo_inscricao Int?
+  oab                String?
+  oab_numero         String?
+  oab_uf             String?
+  token              String?
+  remotejid          String?
+  remotelid          String?
+  ativo              Int?      @default(1)
+  id_empresa         String?   @db.Uuid
+  id_usuario         String?   @db.Uuid
+  email              String?
+  especialidade      String?
+  dt_cadastro        DateTime? @default(now()) @db.Timestamptz(6)
+  biografia          String?
+  lid                String?
+
+  @@index([oab], map: "idx_tb_advogado_oab")
+  @@index([oab_numero, oab_uf], map: "idx_tb_advogado_oab_num_uf")
+  @@index([oab])
+}
+
+model tb_advogado_comunicado {
+  id                    Int       @id @default(autoincrement())
+  envio_wp              Int?      @default(0)
+  envio_wp_data         DateTime? @db.Timestamp(6)
+  envio_wp_status       String?
+  advogado_id           Int?
+  data                  DateTime? @db.Timestamp(6)
+  data_disponibilizacao DateTime? @db.Date
+  data_de               DateTime? @db.Date
+  data_ate              DateTime? @db.Date
+  comunicado_codigo     Int?
+  comunicado_id         BigInt?
+  consulta_oab_num      String?
+  consulta_oab_uf       String?
+  consulta_nome         String?
+  encontrado_oab_num    String?
+  encontrado_oab_uf     String?
+  encontrado_nome       String?
+  numero_processo       String?
+  lido_data             DateTime? @db.Timestamp(6)
+  estrela_audio_data    DateTime? @db.Timestamp(6)
+  estrela_resumo_data   DateTime? @db.Timestamp(6)
+  estrela_resumo        Int?      @default(0)
+  estrela_audio         Int?      @default(0)
+  lido                  Int?      @default(0)
+  id_empresa            String?   @db.Uuid
+
+  @@index([advogado_id], map: "idx_tb_adv_comunicado_adv")
+  @@index([advogado_id], map: "tb_advogado_comunicado_adv_codigo_idx")
+}
+
+model tb_api_consulta_log {
+  codigo                 String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  data                   DateTime? @db.Date
+  nome_advogado          String?
+  oab_completa           String?
+  ob_numero              String?
+  oab_uf                 String?
+  url_request            String?
+  result_status          Int?
+  result_erro            Int?
+  data_hora_request      DateTime? @db.Timetz(6)
+  data_hora_resquest_fim DateTime? @db.Timestamptz(6)
+  status                 Int?      @default(0)
+}
+
+model tb_consulta_erro {
+  codigo         Int       @id
+  adv_codigo     Int?
+  data           DateTime? @db.Date
+  hora           DateTime? @db.Time(6)
+  oab            String?
+  erro_descricao String?
+}
+
+model tb_consulta_ok {
+  codigo        Int       @id
+  adv_codigo    Int?
+  comunicado_id BigInt?
+  data          DateTime? @db.Date
+  hora          DateTime? @db.Time(6)
+  oab           String?
+}
+
+model tb_crm_usuarios {
+  codigo         Int       @id
+  nome           String?
+  senha          String?
+  administrador  String?
+  codiemp        Int?
+  externo        Boolean?  @default(false)
+  ip_conexao     String?
+  email          String?
+  master         Boolean?  @default(false)
+  confsenha      String?
+  codifunc       Int?
+  senha_antiga   String?
+  senha_anterior String?
+  id_grupo       Int?
+  avatar         String?
+  dtcadastro     DateTime? @db.Date
+  img            String?
+  user_active    Boolean?
+}
+
+model tb_crm_usuarios_restri {
+  codiuser              Int     @id
+  codiemp               Int?
+  menus                 String  @default("0")
+  usuarios              String  @default("0")
+  clientes              String  @default("0")
+  clientes_revisoes     String?
+  funcionarios          String  @default("0")
+  produtos              String?
+  relatorios            String?
+  empresas              String?
+  rcracing              String?
+  reportmenuclientes    String?
+  system_config         String?
+  fornecedores          String?
+  clientes_searchcustom String?
+}
+
+model tb_eventos_google {
+  codigo               Int
+  id_evento            String        @id
+  adv_codigo           Int?
+  titulo               String?
+  descricao            String?
+  local_evento         String?
+  data_inicio          DateTime?     @db.Timestamp(6)
+  data_fim             DateTime?     @db.Timestamp(6)
+  fuso_horario         String?
+  url                  String?
+  status               String?
+  tipo_evento          String?
+  organizador          String?
+  criador              String?
+  token                String?
+  id_compromisso       String?       @db.Uuid
+  ultima_sincronizacao DateTime?     @default(now()) @db.Timestamptz(6)
+  sincronizacao_ativa  Boolean?      @default(true)
+  erro_sincronizacao   String?
+  compromissos         compromissos? @relation(fields: [id_compromisso], references: [id_compromisso], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_compromisso], map: "idx_tb_eventos_google_compromisso")
+  @@index([ultima_sincronizacao], map: "idx_tb_eventos_google_sync")
+}
+
+model tb_f_categoria {
+  id_categoria    Int               @id
+  descricao       String?
+  id_usuario      Int?
+  tb_f_lancamento tb_f_lancamento[]
+}
+
+model tb_f_lancamento {
+  id_lancamento  Int             @id
+  descricao      String?
+  valor          Decimal?        @db.Decimal(12, 2)
+  tipo           String?
+  id_categoria   Int?
+  dt_lancamento  DateTime?       @db.Date
+  id_usuario     Int?
+  tb_f_categoria tb_f_categoria? @relation(fields: [id_categoria], references: [id_categoria], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model tb_feriados {
+  codigo          Int       @id
+  descricao       String?
+  data            DateTime? @db.Date
+  facultativo     String?
+  municipal       Int?
+  estadual        Int?
+  federal         Int?
+  tipo            String?
+  tipo_do_feriado String?
+}
+
+model tb_google_auth {
+  id_usuario         Int       @id @default(autoincrement())
+  user_codigo        Int?
+  email              String
+  nome               String?
+  access_token       String?
+  refresh_token      String?
+  expires_at         DateTime? @db.Timestamp(6)
+  refresh_expires_at DateTime? @db.Timestamp(6)
+  token_type         String?
+  id_token           String?
+  scope              String?
+  criado_em          DateTime? @default(now()) @db.Timestamp(6)
+  atualizado_em      DateTime? @db.Timestamp(6)
+  json               Json?
+  user_token         String?
+}
+
+model tb_juris_features {
+  feature_id             Int                      @id @default(autoincrement())
+  feature_code           String                   @unique
+  description            String
+  quantidade_usa         Int?                     @default(0)
+  quantidade             Int?
+  descricao_interna      String?
+  is_ai                  Boolean?                 @default(false)
+  tb_juris_plan_features tb_juris_plan_features[]
+}
+
+model tb_juris_licenses {
+  license_id     Int            @id @default(autoincrement())
+  user_id        Int
+  plan_id        Int
+  start_date     DateTime       @db.Date
+  expiry_date    DateTime       @db.Date
+  license_key    String
+  status         Int?           @default(1) @db.SmallInt
+  tb_juris_plans tb_juris_plans @relation(fields: [plan_id], references: [plan_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model tb_juris_plan_features {
+  plan_feature_id   Int               @default(autoincrement())
+  plan_id           Int
+  feature_id        Int
+  feature_code      String?
+  is_ai             Boolean?          @default(false)
+  tb_juris_features tb_juris_features @relation(fields: [feature_id], references: [feature_id], onDelete: NoAction, onUpdate: NoAction)
+  tb_juris_plans    tb_juris_plans    @relation(fields: [plan_id], references: [plan_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([plan_id, feature_id])
+}
+
+model tb_juris_plans {
+  plan_id                  Int                      @id @default(autoincrement())
+  plan_name                String
+  price_monthly            Decimal                  @db.Decimal(10, 2)
+  price_yearly             Decimal?                 @db.Decimal(10, 2)
+  is_active                Boolean?                 @default(true)
+  qtd_processos            Int?
+  qtd_usuarios             Int?
+  qtd_oab                  Int?
+  qtd_gb_nuvem             Int?
+  stripe_produto_id_mensal String?
+  stripe_produto_id_anual  String?
+  dias                     Int?                     @default(30)
+  tb_juris_licenses        tb_juris_licenses[]
+  tb_juris_plan_features   tb_juris_plan_features[]
+}
+
+model tb_link_acesso {
+  codigo      Int       @id
+  id_adv      Int?
+  id_link     Int?
+  token       String?
+  data_hora   DateTime? @db.Timestamp(6)
+  origem      String?
+  forwardedip String?
+  useragent   String?
+  session_id  String?
+  info        String?
+}
+
+model tb_monitoramento_registro {
+  codigo         Int       @id
+  data           DateTime? @db.Date
+  hora           DateTime? @db.Time(6)
+  adv_oab        String?
+  quantidade     Int?
+  menssagem      String?
+  resultado      String?
+  resultado_erro String?
+  resultado_json Json?
+
+  @@index([adv_oab])
+  @@index([data])
+}
+
+model tb_processo_comunicados {
+  codigo            Int  @id @default(autoincrement())
+  empresa_codigo    Int?
+  processo_codigo   Int?
+  adv_codigo        Int?
+  comunicado_id     Int?
+  comunicado_numero Int?
+}
+
+model tb_whatsapp_validar {
+  codigo             Int       @id @default(autoincrement())
+  remotejid          String?
+  codigo_validar     String?
+  data_hora          DateTime? @db.Timestamp(6)
+  data_hora_validado DateTime? @db.Timestamp(6)
+  LOG                String?
+  sistema_origem     String?
+  token              String?
+  oab_numero         String?
+  oab_uf             String?
+  validado           Int?
+
+  @@index([codigo_validar])
+  @@index([remotejid])
+}
+
+model temp_code_verify {
+  codigo    String  @id(map: "temp_register_empresa_pkey") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  numero_1  String?
+  numero_2  String?
+  numero_3  String?
+  numero_4  String?
+  remotejid String?
+  email     String?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model transacoes {
+  id_transacao   String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  id_empresa     String     @db.Uuid
+  id_conta       String     @db.Uuid
+  id_processo    String?    @db.Uuid
+  id_pessoa      String?    @db.Uuid
+  tipo           String
+  valor          Decimal    @db.Decimal(14, 2)
+  data_transacao DateTime   @db.Timestamptz(6)
+  descricao      String?
+  custom_fields  Json?
+  criado_em      DateTime   @default(now()) @db.Timestamptz(6)
+  contas         contas     @relation(fields: [id_conta], references: [id_conta], onDelete: NoAction, onUpdate: NoAction)
+  empresas       empresas   @relation(fields: [id_empresa], references: [id_empresa], onDelete: NoAction, onUpdate: NoAction)
+  pessoas        pessoas?   @relation(fields: [id_pessoa], references: [id_pessoa], onDelete: NoAction, onUpdate: NoAction)
+  processos      processos? @relation(fields: [id_processo], references: [id_processo], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([data_transacao], map: "idx_transacoes_data")
+}
+
+model tribunais {
+  id    String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sigla String? @unique(map: "tribunais_sigla_unique")
+  nome  String?
+}
+
+model usuario_empresas {
+  id_usuario String    @db.Uuid
+  id_empresa String    @db.Uuid
+  criado_em  DateTime? @default(now()) @db.Timestamptz(6)
+  empresas   empresas  @relation(fields: [id_empresa], references: [id_empresa], onDelete: Cascade, onUpdate: NoAction)
+  usuarios   usuarios  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([id_usuario, id_empresa])
+}
+
+model usuario_roles {
+  id_usuario   String   @db.Uuid
+  id_role      String   @db.Uuid
+  atribuido_em DateTime @default(now()) @db.Timestamptz(6)
+  roles        roles    @relation(fields: [id_role], references: [id_role], onDelete: Cascade, onUpdate: NoAction)
+  usuarios     usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([id_usuario, id_role])
+}
+
+model usuarios {
+  id_usuario           String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nome                 String
+  email                String              @unique @db.Citext
+  senha                String
+  dt_cadastro          DateTime            @default(now()) @db.Timestamptz(6)
+  ultimo_login         DateTime?           @db.Timestamptz(6)
+  celular              String?
+  remotejid            String?
+  foto                 String?
+  apelido              String?
+  senha_temporaria     String?
+  plan_id              Int?
+  status               String?
+  stripe_cliente_id    String?
+  stripe_assinatura_id String?
+  vl_assinatura        Decimal?            @db.Decimal
+  lid                  String?
+  jid                  String?
+  token                String?
+  dt_termino_acesso    DateTime?           @db.Date
+  ativo                Int?                @default(0)
+  cargo                String?
+  enviar_whatsapp      Int?                @default(0)
+  compromissos         compromissos[]
+  evento_alertas       evento_alertas[]
+  evento_documentos    evento_documentos[]
+  tarefas              tarefas[]
+  usuario_empresas     usuario_empresas[]
+  usuario_roles        usuario_roles[]
+}
